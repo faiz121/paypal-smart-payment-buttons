@@ -123,7 +123,7 @@ function getDimensions(fundingSource : string) : {| width : number, height : num
 
 function initCheckout({ props, components, serviceData, payment, config, restart: fullRestart } : InitOptions) : PaymentFlowInstance {
     const { Checkout } = components;
-    const { sessionID, buttonSessionID, createOrder, onApprove, onCancel,
+    const { sessionID, buttonSessionID, createOrder, onApprove, onComplete, onCancel,
         onShippingChange, locale, commit, onError, vault, clientAccessToken,
         createBillingAgreement, createSubscription, onClick, amount,
         clientID, connect, clientMetadataID: cmid, onAuth, userIDToken, env,
@@ -232,6 +232,13 @@ function initCheckout({ props, components, serviceData, payment, config, restart
 
                 // eslint-disable-next-line no-use-before-define
                 return onApprove({ payerID, paymentID, billingToken, subscriptionID, buyerAccessToken, authCode }, { restart })
+                    // eslint-disable-next-line no-use-before-define
+                    .finally(() => close().then(noop))
+                    .catch(noop);
+            },
+
+            onComplete: () => {
+                return onComplete()
                     // eslint-disable-next-line no-use-before-define
                     .finally(() => close().then(noop))
                     .catch(noop);
