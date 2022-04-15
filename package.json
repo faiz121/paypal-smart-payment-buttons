@@ -86,7 +86,7 @@
     "beaver-logger": "^4.0.32",
     "card-validator": "^8.1.1",
     "credit-card-type": "^9.1.0",
-    "get-browser-fingerprint": "^1.1.0",
+    "get-browser-fingerprint": "^2.0.0",
     "module-alias": "^2.2.2",
     "preact": "^10",
     "preact-render-to-string": "^5.1.4",
