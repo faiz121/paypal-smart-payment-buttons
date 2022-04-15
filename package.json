@@ -100,7 +100,7 @@
     "@krakenjs/webpack-mem-compile": "^2.0.1",
     "babel-core": "^7.0.0-bridge.0",
     "express": "^4.16.3",
-    "flow-bin": "0.155.0"
+    "flow-bin": "0.176.2"
   },
   "license": "Apache-2.0"
 }
