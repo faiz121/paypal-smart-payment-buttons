@@ -135,9 +135,12 @@ function initPaymentFields({ props, components, payment, serviceData, config } :
             close: promiseNoop
         };
     }
-    const restart = memoize(() : ZalgoPromise<void> =>
-        checkout.init({ props, components, payment: { ...payment, isClick: false }, serviceData, config, restart })
-            .start().finally(unresolvedPromise));
+    const restart = memoize(() : ZalgoPromise<void> => {
+        return close().finally(() => {
+            return initPaymentFields({ props, components, serviceData, config, payment: { ...payment }, restart })
+                .start().finally(unresolvedPromise);
+        });
+    });
     const onClose = () => {
         paymentFieldsOpen = false;
     };
@@ -198,7 +201,7 @@ function initPaymentFields({ props, components, payment, serviceData, config } :
         buyerCountry,
         locale,
         commit,
-        cspNonce
+        cspNonce,
     });
     const start = () => {
         paymentFieldsOpen = true;
