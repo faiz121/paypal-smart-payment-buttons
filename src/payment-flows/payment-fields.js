@@ -2,56 +2,36 @@
 import { ZalgoPromise } from '@krakenjs/zalgo-promise/src';
 import { FUNDING } from '@paypal/sdk-constants/src';
 import { memoize, querySelectorAll, debounce, noop } from '@krakenjs/belter/src';
-import { getParent } from '@krakenjs/cross-domain-utils/src';
+import { getParent, getTop } from '@krakenjs/cross-domain-utils/src';
 
-import { DATA_ATTRIBUTES, TARGET_ELEMENT } from '../constants';
+import { DATA_ATTRIBUTES, TARGET_ELEMENT, CONTEXT } from '../constants';
 import { unresolvedPromise, promiseNoop } from '../lib';
 import { getConfirmOrder } from '../props/confirmOrder';
 
-import type { PaymentFlow, PaymentFlowInstance, IsEligibleOptions, IsPaymentEligibleOptions, InitOptions } from './types';
+import type { PaymentFlow, PaymentFlowInstance, IsEligibleOptions, InitOptions } from './types';
 import { checkout } from './checkout';
 
 function setupPaymentField() {
     // pass
 }
+const canRenderTop = false;
+
+function getRenderWindow() : Object {
+    const top = getTop(window);
+    if (canRenderTop && top) {
+        return top;
+    } else if (getParent()) {
+        return getParent();
+    } else {
+        return window;
+    }
+}
 let paymentFieldsOpen = false;
-// function isPaymentFieldsEligible({ props, serviceData } : IsEligibleOptions) : boolean {
-//     const { vault, onShippingChange, inline } = props;
-//     const { eligibility } = serviceData;
-//
-//     if (inline) {
-//         return false;
-//     }
-//
-//     if (vault) {
-//         return false;
-//     }
-//
-//     if (onShippingChange) {
-//         return false;
-//     }
-//
-//     return eligibility.paymentFields;
-// }
-// function isPaymentFieldsPaymentEligible({ payment } : IsPaymentEligibleOptions) : boolean {
-//     const { win, fundingSource } = payment || {};
-//
-//     if (win) {
-//         return false;
-//     }
-//
-//     if (fundingSource && fundingSource !== FUNDING.EPS) {
-//         return false;
-//     }
-//
-//     return true;
-// }
-function isPaymentFieldsEligible({ props, serviceData } : IsEligibleOptions) : boolean {
-    console.log('props ---- ', props);
-    console.log('serviceData ---- ', serviceData);
+
+function isPaymentFieldsEligible({ props, serviceData, event } : IsEligibleOptions) : boolean {
     return true;
 }
-function isPaymentFieldsPaymentEligible() : boolean {
+function isPaymentFieldsPaymentEligible({ event }) : boolean {
     return true;
 }
 function highlightCard(fundingSource : ?$Values<typeof FUNDING>) {
@@ -73,6 +53,7 @@ function unhighlightCards() {
     querySelectorAll(`[${ DATA_ATTRIBUTES.FUNDING_SOURCE }]`).forEach(el => {
         el.style.opacity = '1';
         el.parentElement.style.display = '';
+        el.style.display = '';
     });
 }
 
@@ -113,8 +94,8 @@ const slideUpButtons = (fundingSource : ?$Values<typeof FUNDING>) => {
     recalculateMargin();
 };
 
-const slideDownButtons = (fundingSource : ?$Values<typeof FUNDING>) => {
-    const { buttonsContainer } = getElements(fundingSource);
+const slideDownButtons = () => {
+    const buttonsContainer = document.querySelector('#buttons-container');
 
     unhighlightCards();
     window.removeEventListener('resize', resizeListener);
@@ -135,67 +116,73 @@ function initPaymentFields({ props, components, payment, serviceData, config } :
             close: promiseNoop
         };
     }
-    const restart = memoize(() : ZalgoPromise<void> => {
-        return close().finally(() => {
-            return initPaymentFields({ props, components, serviceData, config, payment: { ...payment }, restart })
-                .start().finally(unresolvedPromise);
-        });
-    });
+    let instance;
+    let approved = false;
+    let forceClosed = false;
     const onClose = () => {
         paymentFieldsOpen = false;
     };
-    // const onCardTypeChange = ({ card: cardType }) => {
-    //     highlightCard(cardType);
-    // };
+    const restart = memoize(() : ZalgoPromise<void> =>
+        checkout.init({ props, components, payment: { ...payment, isClick: false }, serviceData, config, restart })
+            .start().finally(unresolvedPromise));
     let buyerAccessToken;
     const { render, close: closeCardForm } = PaymentFields({
         fundingSource,
         fieldsSessionID,
-        createOrder,
-        onContinue: async (data) => {
-            console.log('data in spb payment-fields ----- ', data);
+        onContinue:   async (data) => {
             const orderID = await createOrder();
             return getConfirmOrder({
                 orderID, payload: data, partnerAttributionID
             }, {
                 facilitatorAccessToken: serviceData.facilitatorAccessToken
-            }).then((response) => {
-                let checkout = Checkout({
+            }).then(() => {
+                instance = Checkout({
                     ...props,
                     onClose: () => {
-                        console.log('onClose was fired');
+                        if (!forceClosed && !approved) {
+                            return close().then(() => {
+                                return onCancel();
+                            });
+                        }
+                    },
+                    onApprove: ({ payerID, paymentID, billingToken }) => {
+                        approved = true;
+                        // eslint-disable-next-line no-use-before-define
+                        return close().then(() => {
+                            return onApprove({ payerID, paymentID, billingToken, buyerAccessToken }, { restart }).catch(noop);
+                        });
                     },
                     sdkMeta,
                     branded: false,
                     standaloneFundingSource: fundingSource,
                     inlinexo: false,
                     onCancel: () => {
-                        console.log('pop up closed');
-                    }
+                        // eslint-disable-next-line no-use-before-define
+                        return close().then(() => {
+                            return onCancel();
+                        });
+                    },
+                    onAuth: ({ accessToken }) => {
+                        const access_token = accessToken ? accessToken : buyerAccessToken;
+                        return onAuth({ accessToken: access_token }).then(token => {
+                            buyerAccessToken = token;
+                        });
+                    },
+                    restart,
                 });
-                checkout.renderTo(getParent(), TARGET_ELEMENT.BODY);
+                instance.renderTo(getRenderWindow(), TARGET_ELEMENT.BODY, CONTEXT.POPUP);
             });
         },
-        onApprove:     ({ payerID, paymentID, billingToken }) => {
-            // eslint-disable-next-line no-use-before-define
-            return close().then(() => {
-                return onApprove({ payerID, paymentID, billingToken, buyerAccessToken }, { restart }).catch(noop);
-            });
-        },
-        onAuth: ({ accessToken }) => {
-            const access_token = accessToken ? accessToken : buyerAccessToken;
-            return onAuth({ accessToken: access_token }).then(token => {
-                buyerAccessToken = token;
-            });
-        },
-        onCancel: () => {
-            // eslint-disable-next-line no-use-before-define
-            return close().then(() => {
-                return onCancel();
-            });
+        onFieldsClose: () => {
+            return closeCardForm().then(() => {
+                paymentFieldsOpen = false;
+                slideDownButtons();
+            })
         },
         onError,
         onClose,
+        showActionButtons: true,
+        sdkMeta,
         sessionID,
         buttonSessionID,
         buyerCountry,
@@ -211,9 +198,11 @@ function initPaymentFields({ props, components, payment, serviceData, config } :
         return renderPromise;
     };
     const close = () => {
-        slideDownButtons();
         return closeCardForm().then(() => {
+            forceClosed = true;
             paymentFieldsOpen = false;
+            instance.close();
+            return slideDownButtons();
         });
     };
     return { start, close };

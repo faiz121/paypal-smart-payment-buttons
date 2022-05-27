@@ -36,13 +36,13 @@ export function setupPaymentFlows({ props, config, serviceData, components } : {
     })).then(noop);
 }
 
-export function getPaymentFlow({ props, payment, config, serviceData } : {| props : ButtonProps, payment : Payment, config : Config, components : Components, serviceData : ServiceData |}) : PaymentFlow {
+export function getPaymentFlow({ props, payment, config, serviceData, event } : {| props : ButtonProps, payment : Payment, config : Config, components : Components, serviceData : ServiceData |}) : PaymentFlow {
     if (!props.fundingSource && payment.fundingSource) {
         props.fundingSource = payment.fundingSource;
     }
 
     for (const flow of PAYMENT_FLOWS) {
-        if (flow.isEligible({ props, config, serviceData }) && flow.isPaymentEligible({ props, payment, config, serviceData })) {
+        if (flow.isEligible({ props, config, serviceData, event }) && flow.isPaymentEligible({ props, payment, config, serviceData, event })) {
             return flow;
         }
     }
@@ -67,7 +67,7 @@ type InitiatePaymentOptions = {|
     components : Components
 |};
 
-export function initiatePaymentFlow({ payment, serviceData, config, components, props } : InitiatePaymentOptions) : ZalgoPromise<void> {
+export function initiatePaymentFlow({ payment, serviceData, config, components, props, event } : InitiatePaymentOptions) : ZalgoPromise<void> {
     const { button, fundingSource, instrumentType, buyerIntent } = payment;
     const buttonLabel = props.style?.label;
 
@@ -81,7 +81,7 @@ export function initiatePaymentFlow({ payment, serviceData, config, components, 
         const restart = ({ payment: restartPayment }) =>
             initiatePaymentFlow({ payment: restartPayment, serviceData, config, components, props });
 
-        const { name, init, inline, spinner, updateFlowClientConfig } = getPaymentFlow({ props, payment, config, components, serviceData });
+        const { name, init, inline, spinner, updateFlowClientConfig } = getPaymentFlow({ props, payment, config, components, serviceData, event });
         const { click, start, close } = init({ props, config, serviceData, components, payment, restart });
 
         getLogger()

@@ -81,7 +81,7 @@ export function setupButton(opts : ButtonOpts) : ZalgoPromise<void> {
 
     let paymentProcessing = false;
 
-    function initiatePayment({ payment, props: paymentProps } : {| props : ButtonProps, payment : Payment |}) : ZalgoPromise<void> {
+    function initiatePayment({ payment, props: paymentProps, event } : {| props : ButtonProps, payment : Payment |}) : ZalgoPromise<void> {
         return ZalgoPromise.try(() => {
             if (paymentProcessing) {
                 return;
@@ -108,7 +108,7 @@ export function setupButton(opts : ButtonOpts) : ZalgoPromise<void> {
             if (isEnabled()) {
                 paymentProcessing = true;
 
-                return initiatePaymentFlow({ payment, config, serviceData, components, props: paymentProps }).finally(() => {
+                return initiatePaymentFlow({ payment, config, serviceData, components, props: paymentProps, event }).finally(() => {
                     paymentProcessing = false;
                 });
             } else  {
@@ -165,7 +165,7 @@ export function setupButton(opts : ButtonOpts) : ZalgoPromise<void> {
 
             const paymentProps = getButtonProps({ facilitatorAccessToken, brandedDefault, paymentSource: paymentFundingSource });
 
-            const payPromise = initiatePayment({ payment, props: paymentProps });
+            const payPromise = initiatePayment({ payment, props: paymentProps, event });
             const { onError } = paymentProps;
 
             payPromise.catch(err => {
